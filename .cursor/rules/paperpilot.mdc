@@ -1,0 +1,31 @@
+---
+description: PaperPilot architecture, module boundaries, and coding conventions
+alwaysApply: true
+---
+
+# PaperPilot
+
+Project: PaperPilot, a RAG research-paper assistant (summarize papers, answer questions with
+numbered citations, compare papers). Plain Python 3.11, NO LangChain or LlamaIndex.
+
+## Architecture (strict separation of concerns)
+
+- `paperpilot/config.py` – frozen Settings dataclass read from env vars (python-dotenv)
+- `paperpilot/ingest.py` – PDF -> paragraphs (PyMuPDF) -> Chunk dataclass
+- `paperpilot/store.py` – sentence-transformers embeddings + ChromaDB wrapper (PaperStore)
+- `paperpilot/prompts.py` – system prompts, context formatting, citation parsing (pure functions)
+- `paperpilot/llm.py` – the ONLY module that imports the anthropic SDK
+- `paperpilot/service.py` – PaperPilot class: add_pdf / ask / summarize / compare
+- `streamlit_app.py` and `api.py` are thin layers that only call PaperPilot
+
+## Conventions
+
+- Type hints on all public functions, short docstrings, no `print()` in library code (use logging).
+- Secrets only via environment variables; never hardcode keys; `.env` is gitignored.
+- Do not add dependencies without listing them in `requirements.txt`.
+- Keep changes scoped to the files the prompt names; do not refactor unrelated code.
+- When a step is done, tell me the exact command to verify it.
+
+## Reference
+
+`docs/paperpilot-guide.pdf` is the source of truth for design decisions.

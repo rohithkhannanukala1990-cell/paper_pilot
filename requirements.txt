@@ -1,0 +1,12 @@
+pymupdf
+chromadb
+sentence-transformers
+anthropic
+python-dotenv
+streamlit
+fastapi
+uvicorn
+python-multipart
+rank-bm25
+tenacity
+pytest
