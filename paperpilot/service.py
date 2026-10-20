@@ -4,15 +4,17 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
-import fitz
+import pymupdf as fitz
 
 from paperpilot.config import MAX_PAGES, MAX_UPLOAD_MB, settings
+from paperpilot.hybrid import hybrid_search
 from paperpilot.ingest import ingest_pdf
-from paperpilot.llm import complete
+from paperpilot.llm import complete, stream
 from paperpilot.logging_setup import setup_logging
 from paperpilot.prompts import (
     COMPARE_SYSTEM,
@@ -22,6 +24,7 @@ from paperpilot.prompts import (
     format_context,
     parse_citations,
 )
+from paperpilot.rerank import rerank
 from paperpilot.store import PaperStore
 
 logger = logging.getLogger(__name__)
@@ -71,6 +74,34 @@ class PaperPilot:
         setup_logging()
         self.store = PaperStore()
 
+    def _retrieve(
+        self,
+        query: str,
+        k: int,
+        paper_ids: list[str] | None,
+    ) -> list[dict[str, Any]]:
+        """Dispatch retrieval on ``settings.retriever``."""
+        if settings.retriever == "vector":
+            return self.store.search(query, k=k, paper_ids=paper_ids)
+        if settings.retriever == "hybrid":
+            return hybrid_search(
+                self.store,
+                query,
+                paper_ids=paper_ids,
+                k=k,
+                min_score=MIN_SCORE,
+            )
+        if settings.retriever == "rerank":
+            candidates = hybrid_search(
+                self.store,
+                query,
+                paper_ids=paper_ids,
+                k=20,
+                min_score=MIN_SCORE,
+            )
+            return rerank(query, candidates, top_n=5)
+        raise ValueError(f"Unknown retriever: {settings.retriever}")
+
     def add_pdf(self, path: str | Path) -> dict[str, Any]:
         """Ingest a PDF into the store; skip upsert if the paper is already indexed."""
         path = Path(path)
@@ -103,8 +134,10 @@ class PaperPilot:
     ) -> dict[str, Any]:
         """Retrieve with a rewritten query; answer using the original question."""
         query = standalone(history, question)
-        hits = self.store.search(query, k=settings.top_k, paper_ids=paper_ids)
-        hits = [h for h in hits if h["score"] >= MIN_SCORE]
+        hits = self._retrieve(query, settings.top_k, paper_ids)
+        # hybrid/rerank already drop vector hits below MIN_SCORE before fusion
+        if settings.retriever not in ("hybrid", "rerank"):
+            hits = [h for h in hits if h["score"] >= MIN_SCORE]
 
         if not hits:
             return {
@@ -120,22 +153,35 @@ class PaperPilot:
         answer = complete(SYSTEM, user)
         logger.info("generate ask latency=%.2fs", time.perf_counter() - t0)
         _valid, invalid = parse_citations(answer, hits)
-
-        sources = [
-            {
-                "title": (h.get("meta") or {}).get("title", ""),
-                "section": (h.get("meta") or {}).get("section", ""),
-                "page": (h.get("meta") or {}).get("page", ""),
-                "score": h["score"],
-            }
-            for h in hits
-        ]
         return {
             "answer": answer,
-            "sources": sources,
+            "sources": hits,
             "invalid_citations": invalid,
             "query": query,
         }
+
+    def ask_stream(
+        self,
+        question: str,
+        paper_ids: list[str] | None = None,
+        history: list[tuple[str, str]] | None = None,
+    ) -> tuple[list[dict[str, Any]], str, Iterator[str]]:
+        """Rewrite and retrieve sync; return ``(hits, query, text generator)``."""
+        query = standalone(history, question)
+        hits = self._retrieve(query, settings.top_k, paper_ids)
+        if settings.retriever not in ("hybrid", "rerank"):
+            hits = [h for h in hits if h["score"] >= MIN_SCORE]
+
+        if not hits:
+
+            def _not_found() -> Iterator[str]:
+                yield NOT_FOUND
+
+            return [], query, _not_found()
+
+        context = format_context(hits)
+        user = f"CONTEXT:\n{context}\n\nQUESTION: {question}"
+        return hits, query, stream(SYSTEM, user)
 
     def _summarize_facet(
         self,
@@ -226,17 +272,8 @@ class PaperPilot:
         answer = complete(COMPARE_SYSTEM, user, max_tokens=1800)
         logger.info("generate compare latency=%.2fs", time.perf_counter() - t0)
         _valid, invalid = parse_citations(answer, hits)
-        sources = [
-            {
-                "title": (h.get("meta") or {}).get("title", ""),
-                "section": (h.get("meta") or {}).get("section", ""),
-                "page": (h.get("meta") or {}).get("page", ""),
-                "score": h["score"],
-            }
-            for h in hits
-        ]
         return {
             "answer": answer,
-            "sources": sources,
+            "sources": hits,
             "invalid_citations": invalid,
         }

@@ -16,7 +16,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-import fitz
+import pymupdf as fitz
 
 from paperpilot.config import settings
 

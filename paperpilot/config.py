@@ -12,6 +12,17 @@ load_dotenv()
 MAX_UPLOAD_MB = 25
 MAX_PAGES = 60
 
+_ALLOWED_RETRIEVERS = frozenset({"vector", "hybrid", "rerank"})
+
+
+def _env_retriever() -> str:
+    value = os.getenv("RETRIEVER", "vector")
+    if value not in _ALLOWED_RETRIEVERS:
+        raise ValueError(
+            f"Invalid RETRIEVER={value!r}; allowed: vector|hybrid|rerank"
+        )
+    return value
+
 
 @dataclass(frozen=True)
 class Settings:
@@ -24,6 +35,7 @@ class Settings:
     top_k: int = int(os.getenv("TOP_K", "6"))
     chunk_words: int = int(os.getenv("CHUNK_WORDS", "220"))
     chunk_overlap: int = int(os.getenv("CHUNK_OVERLAP", "40"))
+    retriever: str = _env_retriever()
 
 
 settings = Settings()

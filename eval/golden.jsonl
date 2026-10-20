@@ -1,0 +1,3 @@
+{"question": "What problem does this paper address?", "paper_id": "REPLACE_WITH_PAPER_ID", "evidence": ["distinctive phrase from the paper"], "answerable": true}
+{"question": "What dataset is used for evaluation?", "paper_id": "REPLACE_WITH_PAPER_ID", "evidence": ["DatasetName", "another distinctive phrase"], "answerable": true}
+{"question": "What was the stock price of Acme Corp on 1 Jan 1999?", "paper_id": "REPLACE_WITH_PAPER_ID", "evidence": [], "answerable": false}

@@ -7,6 +7,7 @@ from pathlib import Path
 import streamlit as st
 
 from paperpilot.config import settings
+from paperpilot.prompts import parse_citations
 from paperpilot.service import PaperPilot
 
 st.set_page_config(page_title="PaperPilot", layout="wide")
@@ -120,14 +121,17 @@ def main() -> None:
                 st.markdown(prompt)
             with st.chat_message("assistant"):
                 try:
-                    result = pilot.ask(
+                    hits, _query, gen = pilot.ask_stream(
                         prompt,
                         paper_ids=selected,
                         history=prior,
                     )
-                    st.markdown(result["answer"])
-                    show_sources(result["sources"], result["invalid_citations"])
-                    st.session_state.history.append(("assistant", result["answer"]))
+                    answer = st.write_stream(gen)
+                    if not isinstance(answer, str):
+                        answer = "".join(answer) if answer is not None else ""
+                    _valid, invalid = parse_citations(answer, hits)
+                    show_sources(hits, invalid)
+                    st.session_state.history.append(("assistant", answer))
                 except Exception as exc:
                     st.error(str(exc))
                     st.session_state.history.pop()

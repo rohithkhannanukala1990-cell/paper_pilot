@@ -25,9 +25,10 @@ def main(argv: list[str] | None = None) -> None:
     if result["sources"]:
         print("\nSources:")
         for i, src in enumerate(result["sources"], start=1):
+            meta = src.get("meta") or {}
             print(
-                f"  [{i}] {src['title']} | {src['section']} | "
-                f"p.{src['page']} | score={src['score']:.3f}"
+                f"  [{i}] {meta.get('title', '')} | {meta.get('section', '')} | "
+                f"p.{meta.get('page', '')} | score={src['score']:.3f}"
             )
     if result["invalid_citations"]:
         print(f"\nInvalid citations: {result['invalid_citations']}")
