@@ -18,4 +18,9 @@ RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTr
 
 COPY . .
 
-EXPOSE 8501
+RUN mkdir -p /app/data/papers /app/data/chroma
+
+EXPOSE 8501 8000
+
+# Overridden by docker-compose for ui vs api
+CMD ["streamlit", "run", "streamlit_app.py", "--server.address", "0.0.0.0", "--server.port", "8501"]

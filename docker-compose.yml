@@ -8,9 +8,15 @@ services:
       --server.port 8501
     ports:
       - "8501:8501"
-    env_file: .env
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      CHROMA_DIR: data/chroma
+      UPLOAD_DIR: data/papers
     volumes:
       - ./data:/app/data
+    restart: unless-stopped
 
   api:
     build: .
@@ -21,6 +27,12 @@ services:
       --port 8000
     ports:
       - "8000:8000"
-    env_file: .env
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      CHROMA_DIR: data/chroma
+      UPLOAD_DIR: data/papers
     volumes:
       - ./data:/app/data
+    restart: unless-stopped
